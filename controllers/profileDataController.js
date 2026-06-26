@@ -5,8 +5,9 @@ const ProfileData = require('../models/ProfileData');
 // @access  Private
 const getProfileData = async (req, res) => {
     try {
-        const { page = 1, limit = 50, actionType, search } = req.query;
-        const userId = req.user._id;
+        const { page = 1, limit = 50, actionType, search, accountId } = req.query;
+        // Support both JWT auth (req.user) and Extension API Key (accountId param)
+        const userId = req.user?._id || accountId || 'extension-default';
 
         // Build query
         const query = { userId };
@@ -105,17 +106,19 @@ const saveProfileData = async (req, res) => {
             certifications,
             actionType,
             connected,
-            rawData
+            rawData,
+            accountId
         } = req.body;
 
-        if (!profileUrl || !profileId) {
+        if (!profileUrl) {
             return res.status(400).json({
                 success: false,
-                message: 'Profile URL and Profile ID are required'
+                message: 'Profile URL is required'
             });
         }
 
-        const userId = req.user._id;
+        // Support both JWT auth (req.user) and Extension API Key (accountId param)
+        const userId = req.user?._id || accountId || 'extension-default';
 
         // Check if profile already exists (by profileId globally, since it's unique)
         // Use findOneAndUpdate with upsert to handle duplicates gracefully
@@ -173,12 +176,19 @@ const saveProfileData = async (req, res) => {
         };
 
         // Use findOneAndUpdate with upsert to handle duplicates
-        // CRITICAL: Must filter by both userId AND profileId to prevent cross-user data leakage
+        // CRITICAL: Must filter by userId to prevent cross-user data leakage
         // This ensures each user only updates their own profiles
+        const query = { userId };
+        if (profileId) {
+            query.profileId = profileId;
+        } else if (profileUrl) {
+            query.profileUrl = profileUrl;
+        }
+
         const profile = await ProfileData.findOneAndUpdate(
-            { userId: userId, profileId: profileId }, // Find by userId AND profileId (compound unique index)
+            query,
             { $set: updateData },
-            { 
+            {
                 new: true, // Return updated document
                 upsert: true, // Create if doesn't exist
                 runValidators: true // Run schema validators
