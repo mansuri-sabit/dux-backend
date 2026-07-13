@@ -18,10 +18,10 @@ const register = async (req, res) => {
         const { username, email, password } = req.body;
 
         // Validation
-        if (!username || !email || !password) {
-            return res.status(400).json({ success: false, message: 'Please provide all fields' });
+        if (!username || !password) {
+            return res.status(400).json({ success: false, message: 'Please provide username and password' });
         }
-        
+
         // Additional validation before database query
         if (username.trim().length < 3) {
             return res.status(400).json({ success: false, message: 'Username must be at least 3 characters' });
@@ -32,12 +32,13 @@ const register = async (req, res) => {
         if (password.length < 6) {
             return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
         }
-        if (!/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+        if (email && !/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
             return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
         }
 
-        // Check if user exists
-        const userExists = await User.findOne({ $or: [{ email }, { username }] });
+        // Check if user exists (only check email if provided)
+        const query = email ? { $or: [{ email }, { username }] } : { username };
+        const userExists = await User.findOne(query);
         if (userExists) {
             return res.status(400).json({ success: false, message: 'User already exists' });
         }
